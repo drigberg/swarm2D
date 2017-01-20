@@ -1,11 +1,11 @@
 //----------global defaults
 var backgroundColor, speed, numConstellations;
 var swarms;
-var numSwarms;
-var bugSize;
-var speed;
-var newDestProb;
-var maxTurnSpeed, maxAngularAcceleration;
+var numSwarms = 1;
+var bugSize = 5;
+var speed = 5;
+var maxTurnSpeed = 0.1;
+var maxAngularAcceleration = 0.04;
 
 //=========================
 //Setup & draw functions
@@ -13,28 +13,18 @@ var maxTurnSpeed, maxAngularAcceleration;
 function setup() {
     makeCanvas();
     resetSwarms();
-    setInitialValues();
 }
 
 function makeCanvas(){
     var canvas = createCanvas(($(window).width()), $(window).height() + 50);
     canvas.parent('canvas-background');
     backgroundColor = "rgba(0, 0, 0, 0)";
-    bugSize = 5;
-    speed = 5;
-    numSwarms = 1;
-    newDestProb = 0.99;
 };
 
 function windowResized() {
 	resizeCanvas(windowWidth, windowHeight);
 }
 
-function setInitialValues(){
-    emptyVector = [0,0];
-    maxTurnSpeed = 0.1;
-    maxAngularAcceleration = 0.04;
-};
 
 function resetSwarms(){
     swarms = new Array(numSwarms);
@@ -62,13 +52,12 @@ function draw() {
 //Classes
 //=========================
 var Swarm = function(spawnX, spawnY, destX, destY){
-  //collection of stars and lines which connect them, or single star
+  //collection of bugs with a common target
   this.destination = {
       x : destX,
       y : destY
   };
   this.bugs = [];
-  this.wander = 0;
   this.r = 0;
   this.g = 0;
   this.b = 0;
@@ -85,13 +74,15 @@ var Swarm = function(spawnX, spawnY, destX, destY){
 };
 
 var Bug = function(parentSwarm, x, y, r){
-    //set of coordinates, radius, and color
+    //member of a swarm
     var that = this;
     this.spread = 200;
     this.parentSwarm = parentSwarm;
     this.x = x + random(-1 * this.spread, this.spread);
     this.y = y + random(-1 * this.spread, this.spread);
     this.radius = r;
+    this.wander = 0;
+    this.maxTurnSpeed = random(maxTurnSpeed * 0.5, maxTurnSpeed * 1.5)
     this.turningSpeed = 0;
     this.vector = {
         unitVector : {
@@ -106,8 +97,8 @@ var Bug = function(parentSwarm, x, y, r){
         angular     : 0
     };
 
-
     this.accelerate = function(){
+        //calculate new velocity and direction based on destination and current direction
         var unitVectorToDest = findUnitVector(this.x, this.y, this.parentSwarm.destination.x, this.parentSwarm.destination.y);
         var currentUnitVector = findUnitVector(0, 0, this.vector.unitVector.x, this.vector.unitVector.y)
 
@@ -115,6 +106,7 @@ var Bug = function(parentSwarm, x, y, r){
         var currentAngleFromOrigin = findAngleFromOrigin(currentUnitVector);
         var angle = findAngle(unitVectorToDest, currentUnitVector);
 
+        //calculate which direction to turn--very inefficient, due to be revised
         if (unitVectorToDest.y * currentUnitVector.y > 0 ) {
             if (destAngleFromOrigin > currentAngleFromOrigin) {
                 angle = angle;
@@ -139,7 +131,7 @@ var Bug = function(parentSwarm, x, y, r){
             };
         };
 
-
+        //only turn if not facing target
         if (!angle && angle != 0) {
             that.acceleration.angular = 0;
         } else if (abs(angle) < PI/50) {
@@ -147,8 +139,6 @@ var Bug = function(parentSwarm, x, y, r){
         } else {
             that.acceleration.angular += angle;
         };
-
-
 
         if (abs(that.acceleration.angular) > maxAngularAcceleration) {
             that.acceleration.angular *= (abs(maxAngularAcceleration / that.acceleration.angular));
@@ -160,8 +150,15 @@ var Bug = function(parentSwarm, x, y, r){
             that.turningSpeed += that.acceleration.angular;
         }
 
-        if (abs(that.turningSpeed) > maxTurnSpeed) {
-            that.turningSpeed *= (abs(maxTurnSpeed / that.turningSpeed));
+        //add wander
+        that.wander += random(-0.01, 0.01);
+        if (abs(that.wander) > 0.05) {
+            that.wander *= 0.9;
+        };
+        that.turningSpeed += this.wander;
+
+        if (abs(that.turningSpeed) > this.maxTurnSpeed) {
+            that.turningSpeed *= (abs(this.maxTurnSpeed / that.turningSpeed));
         };
 
         if (currentAngleFromOrigin < 0){
@@ -169,12 +166,7 @@ var Bug = function(parentSwarm, x, y, r){
         };
 
         newAngle = currentAngleFromOrigin + that.turningSpeed
-
-
         newVector = findUnitVector(0, 0, cos(newAngle), sin(newAngle))
-
-
-
 
         that.vector.unitVector.x = newVector.x;
         that.vector.unitVector.y = newVector.y;
@@ -186,9 +178,9 @@ var Bug = function(parentSwarm, x, y, r){
         this.accelerate();
         this.x += this.vector.unitVector.x * this.vector.magnitude;
         this.y += this.vector.unitVector.y * this.vector.magnitude;
-        var lineVectorX = this.x + this.vector.unitVector.x * this.vector.magnitude * 4;
-        var lineVectorY = this.y + this.vector.unitVector.y * this.vector.magnitude * 4;
-        stroke(250, 0, 250);
+        var lineVectorX = this.x + this.vector.unitVector.x * this.vector.magnitude * 2;
+        var lineVectorY = this.y + this.vector.unitVector.y * this.vector.magnitude * 2;
+        stroke(0, 0, 0);
         line(this.x, this.y, lineVectorX, lineVectorY);
         noStroke();
         ellipse(this.x, this.y, this.radius, this.radius);
